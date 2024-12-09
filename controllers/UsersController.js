@@ -1,6 +1,8 @@
 import Queue from 'bull';
+import { ObjectId } from 'mongodb';
 import dbClient from '../utils/db';
 import hash from '../utils/hash';
+import redisClient from '../utils/redis';
 
 const postNew = async (req, res) => {
   const { email, password } = req.body;
@@ -25,5 +27,16 @@ const postNew = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
+const getMe = async (req, res) => {
+  const token = req.headers['x-token'];
+  const userId = await redisClient.get(`auth_${token}`);
+  if (userId) {
+    const user = await dbClient.findOne('users', { _id: ObjectId(userId) });
+    if (user) {
+      return res.status(200).json({ id: user._id, email: user.email });
+    }
+  }
+  return res.status(401).json({ error: 'Unauthorized' });
+};
 
-module.exports = { postNew };
+module.exports = { postNew, getMe };
