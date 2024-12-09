@@ -14,4 +14,6 @@ router.get('/users/me', UsersController.getMe);
 router.get('/connect', AuthController.getConnect);
 router.get('/disconnect', AuthController.getDisconnect);
 
+router.post('/files', )
+
 export default router;
