@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { v4 as uuid4 } from 'uuid';
 import fs from 'fs';
 import Queue from 'bull';
+import mime from 'mime-types';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
 import Transform from '../utils/transform';
@@ -141,7 +142,35 @@ const putUnpublish = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
-
+const getFile = async (req, res) => {
+  const fileId = req.params.id;
+  const { size } = req.query;
+  if (fileId && fileId.length !== 24) return res.status(404).json({ error: 'Not found' });
+  const file = await dbClient.findOne('files', { _id: ObjectId(fileId) });
+  if (!file) return res.status(404).json({ error: 'Not found' });
+  const token = req.headers['x-token'];
+  const userId = await redisClient.get(`auth_${token}`);
+  /* eslint-disable-next-line */
+    if (file.isPublic === false && (!userId || file.userId.toString() !== userId)) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  if (file.type === 'folder') return res.status(400).json({ error: 'A folder doesn\'t have content' });
+  if (file.type === 'image') {
+    if (size) {
+      if (['500', '250', '100'].indexOf(size) === -1) {
+        return res.status(400).json({ error: 'Not found' });
+      }
+      file.localPath = `${file.localPath}_${size}`;
+    }
+  }
+  if (fs.existsSync(file.localPath)) {
+    const mimeType = mime.lookup(file.name);
+    res.set('Content-Type', mimeType);
+    const data = fs.readFileSync(file.localPath);
+    return res.end(data);
+  }
+  return res.status(404).json({ error: 'Not found' });
+};
 module.exports = {
-  postUpload, getShow, getIndex, putPublish, putUnpublish,
+  postUpload, getShow, getIndex, putPublish, putUnpublish, getFile,
 };
